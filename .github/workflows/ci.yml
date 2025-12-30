@@ -19,6 +19,12 @@ jobs:
           check-latest: true
           cache: true
 
+      - name: Install Tools
+        run: go install golang.org/x/tools/cmd/stringer@latest
+
+      - name: Generate Code
+        run: go generate ./...
+
       - name: Run Linter
         uses: golangci/golangci-lint-action@v6
         with:
