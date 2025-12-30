@@ -1,0 +1,39 @@
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  disable-all: true
+  enable:
+    # --- Les essentiels (Erreurs et Bugs) ---
+    - errcheck      # Vérifie que les erreurs sont gérées
+    - govet         # Analyse statique standard de Go (shadowing, printf, etc.)
+    - staticcheck   # Le successeur de megacheck (très complet)
+    - unused        # Trouve le code mort (variables/fonctions non utilisées)
+    - ineffassign   # Détecte les assignations inutiles
+    - typecheck     # Vérifie la cohérence des types
+    
+    # --- Style et Qualité (Exigeant mais utile) ---
+    - revive        # Remplace golint, permet de garder un style propre
+    - gocritic      # Suggestions de micro-optimisations et bonnes pratiques
+    - gocyclo       # Mesure la complexité (force à découper les trop grosses fonctions)
+    - misspell      # Vérifie les fautes d'orthographe dans les commentaires
+    - whitespace    # Nettoie les espaces inutiles
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15 # Seuil de tolérance (en dessous de 10 c'est trop strict, au dessus de 20 c'est illisible)
+  
+  revive:
+    rules:
+      # On désactive la règle qui oblige à documenter chaque fonction exportée 
+      # (C'est souvent ça qui est jugé "chiant" au début)
+      - name: exported
+        disabled: true
+      - name: package-comments
+        disabled: true
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0

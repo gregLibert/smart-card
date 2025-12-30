@@ -1,0 +1,34 @@
+name: Quality & Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          check-latest: true
+
+      - name: Install golangci-lint
+        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.55.2
+
+      - name: Run Linter
+        run: $(go env GOPATH)/bin/golangci-lint run ./...
+
+      - name: Run Tests and Check Coverage
+        run: |
+          go test -v -coverprofile=coverage.out ./...
+          
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Total coverage: $COVERAGE%"
+          
+          awk -v cov="$COVERAGE" -v threshold="80" 'BEGIN { if (cov < threshold) { print "Coverage " cov "% is below threshold " threshold "%"; exit 1 } }'
