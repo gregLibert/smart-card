@@ -2,23 +2,11 @@ package iso7816
 
 import (
 	"encoding/hex"
-	"fmt"
 	"strings"
 	"testing"
-)
 
-// tlvHex is a helper to construct byte slices from hex strings parts.
-// It improves readability for TLV structures.
-func tlvHex(parts ...string) []byte {
-	fullHex := strings.Join(parts, "")
-	// Remove potential spaces for safety
-	fullHex = strings.ReplaceAll(fullHex, " ", "")
-	data, err := hex.DecodeString(fullHex)
-	if err != nil {
-		panic(fmt.Sprintf("Invalid hex in test data: %s", fullHex))
-	}
-	return data
-}
+	"github.com/gregLibert/smart-card/pkg/tlv"
+)
 
 func TestParseSelectData(t *testing.T) {
 	// P2 constants: Selection control is on bits 4 and 3.
@@ -40,53 +28,54 @@ func TestParseSelectData(t *testing.T) {
 	}{
 		{
 			name: "FCI with FCP (62) wrapped in 6F",
-			rawData: tlvHex(
-				"6F", "09", // FCI Template (Len 9)
-				"62", "07", // FCP Template (Len 7)
-				"84", "05", "A000000001", // AID
+			rawData: tlv.Hex(
+				"6F 09",            // FCI Template (Len 9)
+				"62 07",            // FCP Template (Len 7)
+				"84 05 A000000001", // AID
 			),
 			p2:      P2_FCI,
 			wantAID: "A000000001",
 		},
 		{
 			name: "FCI with FMD (64) wrapped in 6F",
-			rawData: tlvHex(
-				"6F", "07", // FCI Template (Len 7)
-				"64", "05", // FMD Template (Len 5)
-				"50", "03", "414243", // Label "ABC"
+			rawData: tlv.Hex(
+				"6F 07",        // FCI Template (Len 7)
+				"64 05",        // FMD Template (Len 5)
+				"50 03 414243", // Label "ABC"
 			),
 			p2:        P2_FCI,
 			wantLabel: "ABC",
 		},
 		{
 			name: "Direct FCP Request (Mandatory 62)",
-			rawData: tlvHex(
-				"62", "07", // FCP Template (Len 7)
-				"84", "05", "A000000002", // AID
+			rawData: tlv.Hex(
+				"62 07",            // FCP Template (Len 7)
+				"84 05 A000000002", // AID
 			),
 			p2:      P2_FCP,
 			wantAID: "A000000002",
 		},
 		{
 			name: "Direct FMD Request (Mandatory 64)",
-			rawData: tlvHex(
-				"64", "05", // FMD Template (Len 5)
-				"50", "03", "58595A", // Label "XYZ"
+			rawData: tlv.Hex(
+				"64 05",        // FMD Template (Len 5)
+				"50 03 58595A", // Label "XYZ"
 			),
 			p2:        P2_FMD,
 			wantLabel: "XYZ",
 		},
 		{
 			name: "Error: Mismatch P2 vs Data",
-			rawData: tlvHex(
-				"64", "05", "50", "03", "58595A", // Received FMD
+			rawData: tlv.Hex(
+				"64 05",        // Received FMD
+				"50 03 58595A", // Label
 			),
 			p2:      P2_FCP, // But requested FCP
 			wantErr: true,
 		},
 		{
 			name:    "Proprietary Response (C0)",
-			rawData: tlvHex("C0", "01", "FF"),
+			rawData: tlv.Hex("C0 01 FF"),
 			p2:      P2_FCI,
 			check: func(fci *FileControlInfo) bool {
 				return fci.ProprietaryRawData != nil
@@ -94,18 +83,18 @@ func TestParseSelectData(t *testing.T) {
 		},
 		{
 			name: "Fallback: No Template",
-			rawData: tlvHex(
-				"84", "05", "A000000003", // Raw AID tag
+			rawData: tlv.Hex(
+				"84 05 A000000003", // Raw AID tag
 			),
 			p2:      P2_FCI,
 			wantAID: "A000000003",
 		},
 		{
 			name: "Unknown Tag Capture in FCP",
-			rawData: tlvHex(
-				"62", "0B", // FCP Template (Len 11)
-				"84", "05", "A000000004", // AID (7 bytes total)
-				"99", "02", "CAFE", // Unknown Tag 99 (4 bytes total)
+			rawData: tlv.Hex(
+				"62 0B",            // FCP Template (Len 11)
+				"84 05 A000000004", // AID (7 bytes total)
+				"99 02 CAFE",       // Unknown Tag 99 (4 bytes total)
 			),
 			p2:      P2_FCP,
 			wantAID: "A000000004",

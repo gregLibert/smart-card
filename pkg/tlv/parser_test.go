@@ -31,22 +31,13 @@ type testStruct struct {
 	Other   []bertlv.TLV `tlv:",unknown"`
 }
 
-func tlvHex(parts ...string) []byte {
-	fullHex := strings.Join(parts, "")
-	data, err := hex.DecodeString(fullHex)
-	if err != nil {
-		panic(fmt.Sprintf("Invalid hex in test data: %s", fullHex))
-	}
-	return data
-}
-
 func TestUnmarshal(t *testing.T) {
-	rawData := tlvHex(
-		"84", "02", "1122", // AID
-		"50", "03", "414243", // Label "ABC"
-		"A5", "03", "8201FF", // Nested Details (Template A5, Tag 82)
-		"9F02", "01", "AA", // Custom type (Tag 9F02)
-		"DF01", "01", "BB", // Unknown tag
+	rawData := Hex(
+		"84 02 1122",   // AID
+		"50 03 414243", // Label "ABC"
+		"A5 03 8201FF", // Nested Details (Template A5, Tag 82)
+		"9F02 01 AA",   // Custom type (Tag 9F02)
+		"DF01 01 BB",   // Unknown tag
 	)
 
 	var result testStruct
@@ -80,9 +71,9 @@ func TestUnmarshal(t *testing.T) {
 }
 
 func TestGetValue(t *testing.T) {
-	rawData := tlvHex(
-		"84", "02", "1122", // AID
-		"50", "03", "414243", // Label "ABC"
+	rawData := Hex(
+		"84 02 1122",   // AID
+		"50 03 414243", // Label "ABC"
 	)
 
 	t.Run("Existing Tag", func(t *testing.T) {
@@ -105,7 +96,7 @@ func TestGetValue(t *testing.T) {
 
 func TestUnmarshalErrors(t *testing.T) {
 	t.Run("Non-pointer target", func(t *testing.T) {
-		err := Unmarshal([]byte{0x84, 0x00}, testStruct{})
+		err := Unmarshal(Hex("84 00"), testStruct{})
 		if err == nil || !strings.Contains(err.Error(), "pointer") {
 			t.Errorf("Expected pointer error, got %v", err)
 		}
