@@ -41,9 +41,6 @@ import (
 //   - SW1 (1 byte): Command processing status (High byte).
 //   - SW2 (1 byte): Command processing qualification (Low byte).
 //   - Example: 0x9000 indicates success.
-//
-// TRANSACTION:
-// A logical exchange consisting of sending one Command APDU and receiving one Response APDU.
 
 // APDU Limits and Constants according to ISO 7816-3.
 const (
@@ -187,18 +184,4 @@ func ParseResponseAPDU(raw []byte) (*ResponseAPDU, error) {
 // String returns a readable representation of the response.
 func (r *ResponseAPDU) String() string {
 	return fmt.Sprintf("Data (%d bytes) | Status: %s", len(r.Data), r.Status.Verbose())
-}
-
-// Transaction represents a completed Command-Response pair.
-type Transaction struct {
-	Command  *CommandAPDU
-	Response *ResponseAPDU
-}
-
-// IsSuccess checks if the transaction ended with a successful status.
-func (t *Transaction) IsSuccess() bool {
-	if t.Response == nil {
-		return false
-	}
-	return t.Response.Status.IsSuccess()
 }
