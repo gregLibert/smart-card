@@ -1,4 +1,4 @@
-![CI Status](https://github.com/gregLibert/smart-card/actions/workflows/ci.yml/badge.svg)
+![CI Status](https://github.com/gregLibert/smart-card/actions/workflows/ci.yml/badge.svg) [![Go Report Card](https://goreportcard.com/badge/github.com/gregLibert/smart-card)](https://goreportcard.com/report/github.com/gregLibert/smart-card) [![codecov](https://codecov.io/gh/rgegLibert/smart-card/graph/badge.svg?token=VOTRE_TOKEN_PUBLIC_CODECOV)](https://codecov.io/gh/rgegLibert/smart-card)
 # smart-card
 
 `smart-card` is a Go library developed to help understand the **ISO 7816** and **EMV** standards.

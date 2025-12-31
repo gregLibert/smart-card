@@ -38,3 +38,10 @@ jobs:
           echo "Total coverage: $COVERAGE%"
           
           awk -v cov="$COVERAGE" -v threshold="70" 'BEGIN { if (cov < threshold) { print "Coverage " cov "% is below threshold " threshold "%"; exit 1 } }'
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.out
+          fail_ci_if_error: true
