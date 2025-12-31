@@ -26,6 +26,8 @@ func Unmarshal(data []byte, target interface{}) error {
 }
 
 // UnmarshalFromPackets maps a slice of pre-decoded bertlv.TLV objects to a target struct.
+//
+//nolint:gocyclo // Parsing logic requires handling many types, complexity is expected here
 func UnmarshalFromPackets(packets []bertlv.TLV, target interface{}) error {
 	v := reflect.ValueOf(target)
 	// Ensure the target is a non-nil pointer to a struct
