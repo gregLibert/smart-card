@@ -8,7 +8,7 @@ func TestBit(t *testing.T) {
 		expected byte
 	}{
 		{1, 0x01}, {5, 0x10}, {8, 0x80}, {0, 0x00},
-		{9, 0x00}, //dumb value silently ignored
+		{9, 0x00}, // dumb value silently ignored
 	}
 
 	for _, tt := range tests {

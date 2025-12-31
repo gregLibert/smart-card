@@ -1,3 +1,4 @@
+![CI Status](https://github.com/gregLibert/smart-card/actions/workflows/ci.yml/badge.svg)
 # smart-card
 
 `smart-card` is a Go library developed to help understand the **ISO 7816** and **EMV** standards.
