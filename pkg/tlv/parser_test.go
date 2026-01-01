@@ -70,6 +70,38 @@ func TestUnmarshal(t *testing.T) {
 	}
 }
 
+func TestUnmarshal_MultipleTags(t *testing.T) {
+	type Item struct {
+		ID   []byte `tlv:"4F"`
+		Name []byte `tlv:"50" fmt:"ascii"`
+	}
+	type Container struct {
+		Items []Item `tlv:"61"`
+	}
+
+	data := Hex(
+		"61 05 4F 03 010203", // First Item
+		"61 05 4F 03 040506", // Second Item
+	)
+
+	var res Container
+	err := Unmarshal(data, &res)
+	if err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	if len(res.Items) != 2 {
+		t.Errorf("Expected 2 items, got %d", len(res.Items))
+	}
+
+	if hex.EncodeToString(res.Items[0].ID) != "010203" {
+		t.Errorf("First item ID mismatch: %x", res.Items[0].ID)
+	}
+	if hex.EncodeToString(res.Items[1].ID) != "040506" {
+		t.Errorf("Second item ID mismatch: %x", res.Items[1].ID)
+	}
+}
+
 func TestGetValue(t *testing.T) {
 	rawData := Hex(
 		"84 02 1122",   // AID

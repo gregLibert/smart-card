@@ -26,123 +26,126 @@ func Unmarshal(data []byte, target interface{}) error {
 }
 
 // UnmarshalFromPackets maps a slice of pre-decoded bertlv.TLV objects to a target struct.
-//
-//nolint:gocyclo // Parsing logic requires handling many types, complexity is expected here
+// It supports multiple occurrences of the same tag if the target field is a slice.
 func UnmarshalFromPackets(packets []bertlv.TLV, target interface{}) error {
 	v := reflect.ValueOf(target)
-	// Ensure the target is a non-nil pointer to a struct
 	if v.Kind() != reflect.Ptr || v.IsNil() {
 		return fmt.Errorf("target must be a non-nil pointer")
 	}
 	v = v.Elem()
 	t := v.Type()
 
-	// Map packets by their hex tag for faster lookup
-	tagMap := make(map[string]bertlv.TLV)
-	for _, p := range packets {
-		tagMap[strings.ToUpper(p.Tag)] = p
-	}
+	consumedIndices := make(map[int]bool)
 
-	consumedTags := make(map[string]bool)
-	var unknownField reflect.Value
-	hasUnknownField := false
-
-	// Iterate through struct fields to map TLV data
 	for i := 0; i < v.NumField(); i++ {
 		field := v.Field(i)
 		fieldType := t.Field(i)
-
 		tagConfig := fieldType.Tag.Get("tlv")
 
-		// The tag name is left empty as this field does not target a specific hex tag.
-		// The ",unknown" suffix defines its behavior as a catch-all for all unmapped fields.
-		// SHould be read as "<no tag>,unknown"
-		if tagConfig == ",unknown" || fieldType.Name == "Unknown" {
-			unknownField = field
-			hasUnknownField = true
+		if tagConfig == "" || tagConfig == ",unknown" || fieldType.Name == "Unknown" {
 			continue
 		}
 
-		if tagConfig == "" {
-			continue
-		}
+		tagHex := strings.ToUpper(strings.Split(tagConfig, ",")[0])
 
-		parts := strings.Split(tagConfig, ",")
-		tagHex := strings.ToUpper(parts[0])
-
-		packet, exists := tagMap[tagHex]
-		if !exists {
-			continue
-		}
-
-		consumedTags[tagHex] = true
-
-		// Check for custom Unmarshaler implementation
-		if field.CanAddr() {
-			if u, ok := field.Addr().Interface().(Unmarshaler); ok {
-				data := packet.Value
-				if len(packet.TLVs) > 0 {
-					if enc, err := bertlv.Encode(packet.TLVs); err == nil {
-						data = enc
-					}
-				}
-				if err := u.UnmarshalTLV(data); err != nil {
-					return fmt.Errorf("custom unmarshal failed for tag %s: %w", tagHex, err)
-				}
-				continue
-			}
-		}
-
-		// Handle byte slices (direct value copy)
-		if isByteSlice(field) {
-			if len(packet.Value) > 0 {
-				field.SetBytes(packet.Value)
-			} else if len(packet.TLVs) > 0 {
-				encodedChildren, err := bertlv.Encode(packet.TLVs)
-				if err == nil {
-					field.SetBytes(encodedChildren)
-				}
-			}
-			continue
-		}
-
-		// Handle strings as hexadecimal representation
-		if field.Kind() == reflect.String {
-			field.SetString(hex.EncodeToString(packet.Value))
-			continue
-		}
-
-		// Handle nested structures
-		if isStructOrPtrToStruct(field) && !isByteSlice(field) {
-			targetField := getTargetField(field)
-			if len(packet.TLVs) > 0 {
-				if err := UnmarshalFromPackets(packet.TLVs, targetField.Interface()); err != nil {
+		// Find all packets matching this tag
+		for idx, packet := range packets {
+			if strings.ToUpper(packet.Tag) == tagHex {
+				if err := mapPacketToField(packet, field); err != nil {
 					return err
 				}
-			} else {
-				if err := Unmarshal(packet.Value, targetField.Interface()); err != nil {
-					return err
-				}
+				consumedIndices[idx] = true
 			}
-			continue
 		}
 	}
 
-	// Capture all tags that were not mapped to a specific field
-	if hasUnknownField {
-		var leftovers []bertlv.TLV
-		for tag, packet := range tagMap {
-			if !consumedTags[tag] {
-				leftovers = append(leftovers, packet)
-			}
-		}
+	return handleUnknownFields(v, t, packets, consumedIndices)
+}
 
-		if len(leftovers) > 0 && unknownField.CanSet() {
-			unknownField.Set(reflect.ValueOf(leftovers))
+// mapPacketToField dispatches the TLV data to the appropriate reflection logic.
+func mapPacketToField(packet bertlv.TLV, field reflect.Value) error {
+	// If it's a slice of structs (but not []byte), we grow the slice and use the last element
+	if field.Kind() == reflect.Slice && !isByteSlice(field) {
+		newElem := reflect.New(field.Type().Elem()).Elem()
+		if err := decodeToValue(packet, newElem); err != nil {
+			return err
 		}
+		field.Set(reflect.Append(field, newElem))
+		return nil
+	}
+
+	return decodeToValue(packet, field)
+}
+
+// decodeToValue handles the leaf-node decoding logic (Custom Unmarshaler, ByteSlice, Struct, etc.)
+func decodeToValue(packet bertlv.TLV, field reflect.Value) error {
+	// 1. Custom Unmarshaler
+	if field.CanAddr() {
+		if u, ok := field.Addr().Interface().(Unmarshaler); ok {
+			return u.UnmarshalTLV(getPacketRawData(packet))
+		}
+	}
+
+	// 2. Byte Slices
+	if isByteSlice(field) {
+		field.SetBytes(getPacketRawData(packet))
+		return nil
+	}
+
+	// 3. Strings (Hex representation)
+	if field.Kind() == reflect.String {
+		field.SetString(hex.EncodeToString(packet.Value))
+		return nil
+	}
+
+	// 4. Nested Structures
+	if isStructOrPtrToStruct(field) {
+		targetField := getTargetField(field)
+		if len(packet.TLVs) > 0 {
+			return UnmarshalFromPackets(packet.TLVs, targetField.Interface())
+		}
+		return Unmarshal(packet.Value, targetField.Interface())
 	}
 
 	return nil
+}
+
+func handleUnknownFields(v reflect.Value, t reflect.Type, packets []bertlv.TLV, consumed map[int]bool) error {
+	unknownField, found := findUnknownField(v, t)
+	if !found {
+		return nil
+	}
+
+	var leftovers []bertlv.TLV
+	for idx, packet := range packets {
+		if !consumed[idx] {
+			leftovers = append(leftovers, packet)
+		}
+	}
+
+	if len(leftovers) > 0 && unknownField.CanSet() {
+		unknownField.Set(reflect.ValueOf(leftovers))
+	}
+	return nil
+}
+
+func findUnknownField(v reflect.Value, t reflect.Type) (reflect.Value, bool) {
+	for i := 0; i < v.NumField(); i++ {
+		tag := t.Field(i).Tag.Get("tlv")
+		if tag == ",unknown" || t.Field(i).Name == "Unknown" {
+			return v.Field(i), true
+		}
+	}
+	return reflect.Value{}, false
+}
+
+func getPacketRawData(p bertlv.TLV) []byte {
+	if len(p.TLVs) > 0 {
+		if enc, err := bertlv.Encode(p.TLVs); err == nil {
+			return enc
+		}
+	}
+	return p.Value
 }
 
 // GetValue scans the raw data for a specific tag and returns its raw payload.
