@@ -1,12 +1,10 @@
 package iso7816
 
 import (
-	"encoding/hex"
 	"fmt"
-	"reflect"
 	"strings"
 
-	"github.com/moov-io/bertlv"
+	"github.com/gregLibert/smart-card/pkg/tlv"
 )
 
 // SELECT RESULT ANALYSIS:
@@ -73,7 +71,7 @@ func (r *SelectResult) Describe() string {
 	sb.WriteString(fmt.Sprintf("    + Control: %02X -> %s | %s\n", cmd.P2, occ, ctrl))
 
 	if len(cmd.Data) > 0 {
-		sb.WriteString(fmt.Sprintf("    + Data:    %X (%q)\n", cmd.Data, makeSafeASCII(cmd.Data)))
+		sb.WriteString(fmt.Sprintf("    + Data:    %X (%q)\n", cmd.Data, tlv.MakeSafeASCII(cmd.Data)))
 	}
 
 	swVal := uint16(tx0.Response.Status)
@@ -158,70 +156,14 @@ func (r *SelectResult) Describe() string {
 	sb.WriteString(fmt.Sprintf("    - Structure: %s\n", strList))
 
 	if fci.FCP != nil {
-		writeStructFields(&sb, "FCP", fci.FCP)
+		tlv.WriteStructFields(&sb, "FCP", fci.FCP)
 	}
 	if fci.FMD != nil {
-		writeStructFields(&sb, "FMD", fci.FMD)
+		tlv.WriteStructFields(&sb, "FMD", fci.FMD)
 	}
 	if len(fci.ProprietaryRawData) > 0 {
 		sb.WriteString(fmt.Sprintf("    - Proprietary:   %X\n", fci.ProprietaryRawData))
 	}
 
 	return strings.TrimRight(sb.String(), "\n")
-}
-
-func writeStructFields(sb *strings.Builder, prefix string, s interface{}) {
-	val := reflect.ValueOf(s).Elem()
-	typ := val.Type()
-
-	for i := 0; i < val.NumField(); i++ {
-		field := val.Field(i)
-		fieldType := typ.Field(i)
-
-		if field.Kind() == reflect.Slice && field.Type().Elem().Kind() == reflect.Uint8 {
-			if !field.IsNil() && field.Len() > 0 {
-				bytesVal := field.Bytes()
-				formatTag := fieldType.Tag.Get("fmt")
-				tlvTag := fieldType.Tag.Get("tlv")
-
-				name := fieldType.Name
-				if tlvTag != "" {
-					name = fmt.Sprintf("%s (%s)", name, tlvTag)
-				}
-
-				displayVal := ""
-				switch formatTag {
-				case "ascii":
-					displayVal = fmt.Sprintf("%X (%q)", bytesVal, makeSafeASCII(bytesVal))
-				case "int":
-					var integer int
-					for _, b := range bytesVal {
-						integer = (integer << 8) | int(b)
-					}
-					displayVal = fmt.Sprintf("%X (Dec: %d)", bytesVal, integer)
-				default:
-					displayVal = strings.ToUpper(hex.EncodeToString(bytesVal))
-				}
-				sb.WriteString(fmt.Sprintf("    - %s.%s: %s\n", prefix, name, displayVal))
-			}
-		}
-
-		if field.Type() == reflect.TypeOf([]bertlv.TLV{}) {
-			if !field.IsNil() && field.Len() > 0 {
-				tlvs := field.Interface().([]bertlv.TLV)
-				for _, t := range tlvs {
-					sb.WriteString(fmt.Sprintf("    - %s.Unknown Tag %s:           %X\n", prefix, t.Tag, t.Value))
-				}
-			}
-		}
-	}
-}
-
-func makeSafeASCII(data []byte) string {
-	return strings.Map(func(r rune) rune {
-		if r >= 32 && r <= 126 {
-			return r
-		}
-		return '.'
-	}, string(data))
 }
