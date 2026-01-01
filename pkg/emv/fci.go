@@ -35,14 +35,14 @@ type FCIProprietaryTemplate struct {
 
 // FCIIssuerDiscretionaryData represents the discretionary data (Tag 'BF0C') which often contains specific bank or country information.
 type FCIIssuerDiscretionaryData struct {
-	LogEntry                           []byte  `tlv:"9F4D"`
-	IssuerIdentificationNumberExtended *[]byte `tlv:"9F0C"`
-	IssuerCountryCodeAlpha3            []byte  `tlv:"5F56" fmt:"ascii"`
-	IssuerCountryCodeAlpha2            []byte  `tlv:"5F55" fmt:"ascii"`
-	BankIdentifierCode                 []byte  `tlv:"5F54" fmt:"ascii"`
-	IBAN                               []byte  `tlv:"5F53" fmt:"ascii"`
-	IssuerURL                          []byte  `tlv:"5F50" fmt:"ascii"`
-	IssuerIdentificationNumber         []byte  `tlv:"42"`
+	LogEntry                           []byte `tlv:"9F4D"`
+	IssuerIdentificationNumberExtended []byte `tlv:"9F0C"`
+	IssuerCountryCodeAlpha3            []byte `tlv:"5F56" fmt:"ascii"`
+	IssuerCountryCodeAlpha2            []byte `tlv:"5F55" fmt:"ascii"`
+	BankIdentifierCode                 []byte `tlv:"5F54" fmt:"ascii"`
+	IBAN                               []byte `tlv:"5F53" fmt:"ascii"`
+	IssuerURL                          []byte `tlv:"5F50" fmt:"ascii"`
+	IssuerIdentificationNumber         []byte `tlv:"42"`
 
 	Unknown []bertlv.TLV `tlv:",unknown"`
 }
