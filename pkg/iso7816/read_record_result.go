@@ -45,8 +45,7 @@ func (r *ReadRecordResult) Describe() string {
 	}
 	sb.WriteString(fmt.Sprintf("    + Target:  %s\n", targetStr))
 
-	// Decode P1
-	p1Desc := "Unknown"
+	var p1Desc string
 	if (mode & 0b100) != 0 {
 		if cmd.P1 == 0 {
 			p1Desc = "Current Record"
@@ -68,12 +67,13 @@ func (r *ReadRecordResult) Describe() string {
 	resultMsg := "[OK]"
 	resultDesc := "SW_NO_ERROR"
 
-	if sw1 == 0x61 {
+	switch {
+	case sw1 == 0x61:
 		resultDesc = fmt.Sprintf("%02X (%d) bytes still available", sw2, sw2)
-	} else if sw1 == 0x6C {
+	case sw1 == 0x6C:
 		resultMsg = "[!!]"
 		resultDesc = fmt.Sprintf("Wrong length, correct is %02X (%d)", sw2, sw2)
-	} else if swVal != 0x9000 {
+	case swVal != 0x9000:
 		resultMsg = "[!!]"
 		resultDesc = tx0.Response.Status.Verbose()
 	}

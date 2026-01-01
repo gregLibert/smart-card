@@ -9,6 +9,7 @@ import (
 	"github.com/gregLibert/smart-card/pkg/tlv"
 )
 
+//nolint:gocyclo // Test function with many table-driven cases, complexity is expected.
 func TestParseSelectData(t *testing.T) {
 	// P2 constants: Selection control is on bits 4 and 3.
 	const (

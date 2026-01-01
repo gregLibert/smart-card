@@ -107,7 +107,6 @@ func NewSelectCommand(
 	ctrl SelectionControl,
 	data []byte,
 ) *CommandAPDU {
-
 	// P2 Construction: Combine Occurrence (bits 1-2) and Control Info (bits 3-4).
 	p2 := byte(ctrl) | byte(occurrence)
 

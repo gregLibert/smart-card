@@ -52,16 +52,31 @@ func (r *SelectResult) FCI() (*FileControlInfo, error) {
 }
 
 // Describe generates a detailed, ASCII-formatted report of the selection process.
-// It breaks down the initial request, protocol auto-handling (like GET RESPONSE),
-// and provides a field-by-field dump of the parsed FCI structures (FCP/FMD).
 func (r *SelectResult) Describe() string {
 	var sb strings.Builder
 
 	sb.WriteString("=== SELECT COMMAND REPORT ===\n")
 
 	tx0 := r.Trace[0]
-	cmd := tx0.Command
+	r.writeCommandDetails(&sb, tx0.Command)
+	r.writeInitialResult(&sb, tx0.Response)
 
+	finalPayload := tx0.Response.Data
+
+	// Handle Protocol Trace (Auto-handling)
+	if len(r.Trace) > 1 {
+		lastTx := r.Last()
+		finalPayload = lastTx.Response.Data
+		r.writeProtocolTrace(&sb, r.Trace, lastTx)
+	}
+
+	// Handle Final FCI Parsing
+	r.writeFinalOutcome(&sb, finalPayload)
+
+	return strings.TrimRight(sb.String(), "\n")
+}
+
+func (r *SelectResult) writeCommandDetails(sb *strings.Builder, cmd *CommandAPDU) {
 	method := SelectionMethod(cmd.P1)
 	occ := FileOccurrence(cmd.P2 & 0x03)
 	ctrl := SelectionControl(cmd.P2 & 0x0C)
@@ -73,8 +88,10 @@ func (r *SelectResult) Describe() string {
 	if len(cmd.Data) > 0 {
 		sb.WriteString(fmt.Sprintf("    + Data:    %X (%q)\n", cmd.Data, tlv.MakeSafeASCII(cmd.Data)))
 	}
+}
 
-	swVal := uint16(tx0.Response.Status)
+func (r *SelectResult) writeInitialResult(sb *strings.Builder, resp *ResponseAPDU) {
+	swVal := uint16(resp.Status)
 	sw1 := byte(swVal >> 8)
 	sw2 := byte(swVal)
 	swHex := fmt.Sprintf("%02X %02X", sw1, sw2)
@@ -82,60 +99,60 @@ func (r *SelectResult) Describe() string {
 	resultMsg := "[OK]"
 	resultDesc := "SW_NO_ERROR"
 
-	if sw1 == 0x61 {
+	switch {
+	case sw1 == 0x61:
 		resultDesc = fmt.Sprintf("%02X (%d) bytes still available", sw2, sw2)
-	} else if sw1 == 0x6C {
+	case sw1 == 0x6C:
 		resultMsg = "[!!]"
 		resultDesc = fmt.Sprintf("Wrong length, correct is %02X (%d)", sw2, sw2)
-	} else if swVal != 0x9000 {
+	case swVal != 0x9000:
 		resultMsg = "[!!]"
-		resultDesc = tx0.Response.Status.Verbose()
+		resultDesc = resp.Status.Verbose()
 	}
 
 	sb.WriteString(fmt.Sprintf("    + Result:  [%s] %s %s\n", swHex, resultMsg, resultDesc))
 
-	if len(tx0.Response.Data) > 0 {
-		sb.WriteString(fmt.Sprintf("    + Payload: %d bytes received directly\n", len(tx0.Response.Data)))
+	if len(resp.Data) > 0 {
+		sb.WriteString(fmt.Sprintf("    + Payload: %d bytes received directly\n", len(resp.Data)))
 	}
 	sb.WriteString("\n")
+}
 
-	finalPayload := tx0.Response.Data
+func (r *SelectResult) writeProtocolTrace(sb *strings.Builder, trace Trace, lastTx *Transaction) {
+	sb.WriteString(fmt.Sprintf("[2] Protocol: Auto-handling (Sequence of %d steps)\n", len(trace)))
 
-	if len(r.Trace) > 1 {
-		sb.WriteString(fmt.Sprintf("[2] Protocol: Auto-handling (Sequence of %d steps)\n", len(r.Trace)))
+	finalPayload := lastTx.Response.Data
+	finalSW := uint16(lastTx.Response.Status)
 
-		lastTx := r.Last()
-		finalPayload = lastTx.Response.Data
-		finalSW := uint16(lastTx.Response.Status)
-
-		opName := "Unknown"
-		switch lastTx.Command.Instruction.Raw {
-		case INS_GET_RESPONSE:
-			opName = "GET RESPONSE"
-		case INS_SELECT:
-			opName = "RE-SELECT (Correction)"
-		}
-
-		sb.WriteString(fmt.Sprintf("    + Action:  Sending %s\n", opName))
-		sb.WriteString(fmt.Sprintf("    + Result:  [%04X] [OK] Final Status\n", finalSW))
-
-		if len(finalPayload) > 0 {
-			sb.WriteString(fmt.Sprintf("    + Payload: %d bytes received\n", len(finalPayload)))
-			sb.WriteString(fmt.Sprintf("      Dump:    %X\n", finalPayload))
-		}
-		sb.WriteString("\n")
+	opName := "Unknown"
+	switch lastTx.Command.Instruction.Raw {
+	case INS_GET_RESPONSE:
+		opName = "GET RESPONSE"
+	case INS_SELECT:
+		opName = "RE-SELECT (Correction)"
 	}
 
+	sb.WriteString(fmt.Sprintf("    + Action:  Sending %s\n", opName))
+	sb.WriteString(fmt.Sprintf("    + Result:  [%04X] [OK] Final Status\n", finalSW))
+
+	if len(finalPayload) > 0 {
+		sb.WriteString(fmt.Sprintf("    + Payload: %d bytes received\n", len(finalPayload)))
+		sb.WriteString(fmt.Sprintf("      Dump:    %X\n", finalPayload))
+	}
+	sb.WriteString("\n")
+}
+
+func (r *SelectResult) writeFinalOutcome(sb *strings.Builder, payload []byte) {
 	sb.WriteString("[=] FINAL OUTCOME:\n")
 
 	fci, err := r.FCI()
 	if err != nil {
-		if len(finalPayload) > 0 {
+		if len(payload) > 0 {
 			sb.WriteString(fmt.Sprintf("    - FCI Parsing Failed: %v\n", err))
 		} else {
 			sb.WriteString("    - No Data returned to parse.\n")
 		}
-		return sb.String()
+		return
 	}
 
 	structures := []string{}
@@ -156,14 +173,12 @@ func (r *SelectResult) Describe() string {
 	sb.WriteString(fmt.Sprintf("    - Structure: %s", strList))
 
 	if fci.FCP != nil {
-		tlv.WriteStructFields(&sb, "FCP", fci.FCP)
+		tlv.WriteStructFields(sb, "FCP", fci.FCP)
 	}
 	if fci.FMD != nil {
-		tlv.WriteStructFields(&sb, "FMD", fci.FMD)
+		tlv.WriteStructFields(sb, "FMD", fci.FMD)
 	}
 	if len(fci.ProprietaryRawData) > 0 {
 		sb.WriteString(fmt.Sprintf("    - Proprietary:   %X\n", fci.ProprietaryRawData))
 	}
-
-	return strings.TrimRight(sb.String(), "\n")
 }
