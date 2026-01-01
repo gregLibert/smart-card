@@ -111,14 +111,16 @@ func NewSelectCommand(
 	// P2 Construction: Combine Occurrence (bits 1-2) and Control Info (bits 3-4).
 	p2 := byte(ctrl) | byte(occurrence)
 
-	// If the caller explicitly requests No Data, Le must be 0.
-	// Otherwise, we default to MaxShortLe (256) to allow receiving the Template.
-	ne := MaxShortLe
-	if ctrl == ReturnNoData {
-		ne = 0
-	}
-
 	ins, _ := NewInstruction(INS_SELECT)
+
+	// T=0 Protocol Compatibility:
+	// - CASE 3 (Sending Data): We MUST set Le=0. We cannot send Lc and Le simultaneously.
+	//   The card will respond with '61 XX' (Bytes available), and the Client handles it.
+	// - CASE 2 (No Data): We can safely request MaxShortLe (256).
+	ne := 0
+	if len(data) == 0 && ctrl != ReturnNoData {
+		ne = MaxShortLe
+	}
 
 	return NewCommandAPDU(cla, ins, byte(method), p2, data, ne)
 }

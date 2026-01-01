@@ -23,7 +23,7 @@ func TestNewSelectCommand(t *testing.T) {
 				"00 A4 04 00", // Header: CLA=00, INS=A4, P1=04 (AID), P2=00
 				"0E",          // Lc=14
 				"31 50 41 59 2E 53 59 53 2E 44 44 46 30 31", // Data: "1PAY.SYS.DDF01"
-				"00", // Le=256
+				// NO Le "00" here due to T=0 compatibility
 			),
 		},
 		{
@@ -31,7 +31,7 @@ func TestNewSelectCommand(t *testing.T) {
 			cmd:  SelectMF(cls),
 			expected: tlv.Hex(
 				"00 A4 00 00", // Header: CLA=00, INS=A4, P1=00 (FileID), P2=00
-				"00",          // Le=256 (Case 2 Short: No Lc, only Le)
+				"00",          // Le=256 (Allowed because no data sent)
 			),
 		},
 		{
@@ -47,7 +47,7 @@ func TestNewSelectCommand(t *testing.T) {
 				"00 A4 00 06", // Header: P2=06 (ReturnFCP 04 | Next 02)
 				"02",          // Lc=2
 				"3F 00",       // Data: File ID 3F00
-				"00",          // Le=256
+				// NO Le "00" here due to T=0 compatibility
 			),
 		},
 		{
