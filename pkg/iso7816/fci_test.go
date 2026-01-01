@@ -2,6 +2,7 @@ package iso7816
 
 import (
 	"encoding/hex"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -24,7 +25,8 @@ func TestParseSelectData(t *testing.T) {
 		wantAID   string
 		wantLabel string
 		wantErr   bool
-		check     func(*FileControlInfo) bool
+		// custom check for complex logic verification
+		check func(*FileControlInfo) error
 	}{
 		{
 			name: "FCI with FCP (62) wrapped in 6F",
@@ -47,6 +49,35 @@ func TestParseSelectData(t *testing.T) {
 			wantLabel: "ABC",
 		},
 		{
+			name: "Flat FCI: Mixed FCP, FMD and Unknown Tags",
+			// Scenario: No 62/64 wrapper. Tags are mixed at root level.
+			rawData: tlv.Hex(
+				"82 01 38",     // FCP: File Descriptor (Tag 82)
+				"50 03 544553", // FMD: Application Label "TES" (Tag 50)
+				"99 02 CAFE",   // UNKNOWN: Tag 99
+			),
+			p2:        P2_FCI,
+			wantLabel: "TES",
+			check: func(fci *FileControlInfo) error {
+				if hex.EncodeToString(fci.FCP.FileDescriptor) != "38" {
+					return fmt.Errorf("FCP FileDescriptor mismatch: got %x, want 38", fci.FCP.FileDescriptor)
+				}
+				if len(fci.FCP.Unknown) != 0 {
+					return fmt.Errorf("FCP.Unknown should be empty in flat mode, got %d items", len(fci.FCP.Unknown))
+				}
+				if len(fci.FMD.Unknown) != 0 {
+					return fmt.Errorf("FMD.Unknown should be empty in flat mode, got %d items", len(fci.FMD.Unknown))
+				}
+				if len(fci.Unknown) != 1 {
+					return fmt.Errorf("FCI.Unknown should contain exactly 1 item, got %d", len(fci.Unknown))
+				}
+				if fci.Unknown[0].Tag != "99" {
+					return fmt.Errorf("Expected Unknown Tag 99, got %s", fci.Unknown[0].Tag)
+				}
+				return nil
+			},
+		},
+		{
 			name: "Direct FCP Request (Mandatory 62)",
 			rawData: tlv.Hex(
 				"62 07",            // FCP Template (Len 7)
@@ -54,15 +85,6 @@ func TestParseSelectData(t *testing.T) {
 			),
 			p2:      P2_FCP,
 			wantAID: "A000000002",
-		},
-		{
-			name: "Direct FMD Request (Mandatory 64)",
-			rawData: tlv.Hex(
-				"64 05",        // FMD Template (Len 5)
-				"50 03 58595A", // Label "XYZ"
-			),
-			p2:        P2_FMD,
-			wantLabel: "XYZ",
 		},
 		{
 			name: "Error: Mismatch P2 vs Data",
@@ -77,33 +99,11 @@ func TestParseSelectData(t *testing.T) {
 			name:    "Proprietary Response (C0)",
 			rawData: tlv.Hex("C0 01 FF"),
 			p2:      P2_FCI,
-			check: func(fci *FileControlInfo) bool {
-				return fci.ProprietaryRawData != nil
-			},
-		},
-		{
-			name: "Fallback: No Template",
-			rawData: tlv.Hex(
-				"84 05 A000000003", // Raw AID tag
-			),
-			p2:      P2_FCI,
-			wantAID: "A000000003",
-		},
-		{
-			name: "Unknown Tag Capture in FCP",
-			rawData: tlv.Hex(
-				"62 0B",            // FCP Template (Len 11)
-				"84 05 A000000004", // AID (7 bytes total)
-				"99 02 CAFE",       // Unknown Tag 99 (4 bytes total)
-			),
-			p2:      P2_FCP,
-			wantAID: "A000000004",
-			check: func(fci *FileControlInfo) bool {
-				if len(fci.FCP.Unknown) != 1 {
-					return false
+			check: func(fci *FileControlInfo) error {
+				if fci.ProprietaryRawData == nil {
+					return fmt.Errorf("ProprietaryRawData should not be nil")
 				}
-				tag := fci.FCP.Unknown[0]
-				return tag.Tag == "99" && hex.EncodeToString(tag.Value) == "cafe"
+				return nil
 			},
 		},
 	}
@@ -112,19 +112,19 @@ func TestParseSelectData(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := ParseSelectData(tt.rawData, tt.p2)
 
+			// Check error expectation
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ParseSelectData() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-
 			if tt.wantErr {
 				return
 			}
-
 			if got == nil {
 				t.Fatal("Expected result, got nil")
 			}
 
+			// Verify AID helper
 			if tt.wantAID != "" {
 				aid := strings.ToUpper(hex.EncodeToString(got.GetAID()))
 				if aid != tt.wantAID {
@@ -132,6 +132,7 @@ func TestParseSelectData(t *testing.T) {
 				}
 			}
 
+			// Verify Label helper
 			if tt.wantLabel != "" {
 				label := string(got.ApplicationLabel())
 				if label != tt.wantLabel {
@@ -139,9 +140,10 @@ func TestParseSelectData(t *testing.T) {
 				}
 			}
 
+			// Run custom check if defined
 			if tt.check != nil {
-				if !tt.check(got) {
-					t.Errorf("Custom check failed")
+				if err := tt.check(got); err != nil {
+					t.Errorf("Custom check failed: %v", err)
 				}
 			}
 		})

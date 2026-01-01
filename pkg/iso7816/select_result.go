@@ -167,7 +167,7 @@ func (r *SelectResult) Describe() string {
 		sb.WriteString(fmt.Sprintf("    - Proprietary:   %X\n", fci.ProprietaryRawData))
 	}
 
-	return sb.String()
+	return strings.TrimRight(sb.String(), "\n")
 }
 
 func writeStructFields(sb *strings.Builder, prefix string, s interface{}) {

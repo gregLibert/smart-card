@@ -66,6 +66,9 @@ type FileControlInfo struct {
 	FCP *FCPTemplate
 	FMD *FMDTemplate
 
+	// Unknown contains TLV tags that did not match FCP or FMD definitions
+	Unknown []bertlv.TLV // (only populated in "flat" FCI parsing mode).
+
 	ProprietaryRawData []byte
 }
 
@@ -126,6 +129,7 @@ func ParseSelectData(data []byte, p2 byte) (*FileControlInfo, error) {
 		return fci, handleMandatoryTemplate(packets, "64", fci.FMD)
 
 	case 0:
+
 		workingPackets := packets
 
 		for _, p := range packets {
@@ -138,9 +142,23 @@ func ParseSelectData(data []byte, p2 byte) (*FileControlInfo, error) {
 		foundFCP := unmarshalIfTagExists(workingPackets, "62", fci.FCP)
 		foundFMD := unmarshalIfTagExists(workingPackets, "64", fci.FMD)
 
+		// If explicit templates were found, we are done (unknowns remain nested in FCP/FMD).
+		// If NO explicit template is found, we assume a "flat" structure.
 		if !foundFCP && !foundFMD {
-			_ = tlv.UnmarshalFromPackets(workingPackets, fci.FCP)
-			_ = tlv.UnmarshalFromPackets(workingPackets, fci.FMD)
+			if err := tlv.UnmarshalFromPackets(workingPackets, fci.FCP); err != nil {
+				return nil, fmt.Errorf("flat FCP unmarshal failed: %w", err)
+			}
+
+			remainingUnknowns := fci.FCP.Unknown
+			fci.FCP.Unknown = nil
+
+			if err := tlv.UnmarshalFromPackets(remainingUnknowns, fci.FMD); err != nil {
+				return nil, fmt.Errorf("flat FMD unmarshal failed: %w", err)
+			}
+
+			finalUnknowns := fci.FMD.Unknown
+			fci.FMD.Unknown = nil
+			fci.Unknown = finalUnknowns
 		}
 
 		return fci, nil

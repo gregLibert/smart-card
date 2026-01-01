@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gregLibert/smart-card/pkg/tlv"
 )
 
@@ -55,13 +56,12 @@ func TestSelectResult_Describe(t *testing.T) {
 			"    - Structure: FCP + FMD",
 			`    - FCP.DFName (84): 315041592E5359532E4444463031 ("1PAY.SYS.DDF01")`,
 			"    - FCP.ProprietaryDataBER (A5): 8801015F2D046672656EBF0C0ABF0E07D2054C42503431",
-			`    - FMD.ApplicationIdentifier (84): 315041592E5359532E4444463031 ("1PAY.SYS.DDF01")`,
 		}
 
-		for _, line := range expectedLines {
-			if !strings.Contains(report, line) {
-				t.Errorf("Report missing line: %q", line)
-			}
+		actualLines := strings.Split(report, "\n")
+
+		if diff := cmp.Diff(expectedLines, actualLines); diff != "" {
+			t.Errorf("Report mismatch (-want +got):\n%s", diff)
 		}
 	})
 }
