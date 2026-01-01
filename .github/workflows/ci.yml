@@ -20,9 +20,9 @@ jobs:
           cache: true
 
       - name: Install PC/SC dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libpcsclite-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcsclite-dev
 
       - name: Install Tools
         run: go install golang.org/x/tools/cmd/stringer@latest
