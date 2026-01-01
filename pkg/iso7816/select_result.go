@@ -153,7 +153,7 @@ func (r *SelectResult) Describe() string {
 	if len(structures) > 0 {
 		strList = strings.Join(structures, " + ")
 	}
-	sb.WriteString(fmt.Sprintf("    - Structure: %s\n", strList))
+	sb.WriteString(fmt.Sprintf("    - Structure: %s", strList))
 
 	if fci.FCP != nil {
 		tlv.WriteStructFields(&sb, "FCP", fci.FCP)

@@ -77,7 +77,7 @@ func ParseFCI(data []byte) (*FCI, error) {
 // Describe generates a detailed, standardized report of the FCI content.
 func (f *FCI) Describe() string {
 	var sb strings.Builder
-	sb.WriteString("=== EMV FCI TEMPLATE ===\n")
+	sb.WriteString("=== EMV FCI TEMPLATE ===")
 
 	tlv.WriteStructFields(&sb, "FCI", f)
 
