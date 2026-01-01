@@ -55,8 +55,6 @@ func ParseDirectoryRecord(data []byte) (*DirectoryRecord, error) {
 		return nil, fmt.Errorf("BER-TLV decode failed: %w", err)
 	}
 
-	fmt.Printf("packets: %v", packets)
-
 	// The record must be wrapped in Tag '70'
 	var processingPackets []bertlv.TLV
 	if len(packets) > 0 && strings.EqualFold(packets[0].Tag, "70") {
@@ -64,8 +62,6 @@ func ParseDirectoryRecord(data []byte) (*DirectoryRecord, error) {
 	} else {
 		return nil, fmt.Errorf("missing mandatory Record Template (Tag 70)")
 	}
-
-	fmt.Printf("processingPackets: %v", processingPackets)
 
 	record := &DirectoryRecord{}
 	if err := tlv.UnmarshalFromPackets(processingPackets, record); err != nil {
@@ -80,9 +76,13 @@ func (r *DirectoryRecord) Describe() string {
 	var sb strings.Builder
 	sb.WriteString("=== EMV DIRECTORY RECORD ===")
 
+	tlv.WriteStructFields(&sb, "Record", r)
+
 	for i, app := range r.Applications {
 		prefix := fmt.Sprintf("App[%d]", i+1)
 		tlv.WriteStructFields(&sb, prefix, app)
+
+		tlv.WriteStructFields(&sb, prefix+".Discretionary", app.DirectoryDiscretionaryData)
 	}
 
 	return strings.TrimRight(sb.String(), "\n")

@@ -35,9 +35,11 @@ func TestParseDirectoryRecord_WithUnknowns(t *testing.T) {
 
 	expectedLines := []string{
 		"=== EMV DIRECTORY RECORD ===",
-		`    - Record.DDFName (9D): 54455354 ("TEST")`,
-		`    - Record.Unknown Tag 99: DEAF`,
-		`    - App[1].AID (4F): A0000000031010`,
+		"    - Record.Unknown Tag 99: DEAF",
+		"    - App[1].AID (4F): A0000000031010",
+		`    - App[1].ApplicationLabel (50): 56495341 ("VISA")`,
+		`    - App[1].Discretionary.IssuerURL (5F50): 7777772E6D795F62616E6B2E6575 ("www.my_bank.eu")`,
+		"    - App[1].Discretionary.Unknown Tag 99: 11223344",
 	}
 
 	if diff := cmp.Diff(expectedLines, actualLines); diff != "" {
